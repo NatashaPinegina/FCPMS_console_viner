@@ -14,7 +14,8 @@ class Researcher
 {
 public:
 	int KolSat=3;
-	int KolSour = 2;
+	int KolSour = 3;
+    int sizeSPM = 0;
 
 	vector<string> str;
 	vector<vector<double>> bitPosl;
@@ -22,6 +23,7 @@ public:
 	vector<vector<double>> sign;
 	vector<vector<double>> SummSignal;
 	vector<vector<double>> InvR;
+    vector<double> SHUM;
 
 	vector<double> sdvigTime;
 	vector<double> sdvigFreq;
@@ -42,7 +44,7 @@ public:
 		vector<double> Polverout;
 		vector<double> veroutminusone;
 		vector<double> veroutminustwo;
-		for (double shum = -5; shum < 20; shum += 1)
+		for (double shum = 15; shum < 20; shum += 1)
 		{
 			cout << "SNR_dB = " << shum << endl;
 			positive_test_num = 0;
@@ -59,12 +61,12 @@ public:
 				//GenerateTwoLongSignal();
 				if (KolOtch == KolSour) KolPrav++;
 				if (KolOtch == KolSour - 1 || KolOtch == KolSour) KolOne++;
-				//if (KolOtch == KolSour - 2 || KolOtch == KolSour - 1 || KolOtch == KolSour) KolTwo++;
+				if (KolOtch == KolSour - 2 || KolOtch == KolSour - 1 || KolOtch == KolSour) KolTwo++;
 			}
 			Polverout.push_back(KolPrav / num_of_tests);
 			veroutminusone.push_back(KolOne / num_of_tests);
-			//veroutminustwo.push_back(KolTwo / num_of_tests);
-			is << Polverout[iter] << "\t" << veroutminusone[iter] /*<< "\t" << veroutminustwo[iter]*/ << "\n";
+			veroutminustwo.push_back(KolTwo / num_of_tests);
+			is << Polverout[iter] << "\t" << veroutminusone[iter] << "\t" << veroutminustwo[iter] << "\n";
 			iter++;
 		}
 		cout << "FINISH" << endl;
@@ -98,8 +100,8 @@ private:
 		InputSignal.resize(KolSour);
 		bitPosl.resize(KolSour);
 		vector<double> freq;
-		freq.push_back(f0 + f0 / 50);
-		freq.push_back(f0 - f0 / 20);
+		freq.push_back(f0);
+		freq.push_back(f0);
 		freq.push_back(f0);
 		sign.resize(KolSour);
 		for (int i = 0; i < KolSour; i++) {
@@ -204,23 +206,127 @@ private:
 			}
 		}
 
-		//TODO Добавить винеровскую обработку
+        vector<vector<double>> Corr;
+        Corr.resize(KolSat);
+        vector<double> time;
+        vector<double>Sigma;
+        vector<double>LongSigma_new;
+        for(int k=0;k<KolSat;k++) {
+
+            time.clear();
+
+            double sredLongSigma1 = 0, sredLongSigma2 = 0;
+            if(k+1==KolSat)
+            {
+                for (int i = 0; i < SummSignal[k].size(); i++) {
+                    sredLongSigma1 += SummSignal[k][i];
+                    sredLongSigma2 += SummSignal[0][i];
+                }
+                sredLongSigma1 /= SummSignal[k].size();
+                sredLongSigma2 /= SummSignal[0].size();
+
+                Sigma = SummSignal[k];
+                LongSigma_new = SummSignal[0];
+            }
+            else
+            {
+                for (int i = 0; i < SummSignal[k].size(); i++) {
+                    sredLongSigma1 += SummSignal[k][i];
+                    sredLongSigma2 += SummSignal[k+1][i];
+                }
+                sredLongSigma1 /= SummSignal[k].size();
+                sredLongSigma2 /= SummSignal[k+1].size();
+
+                Sigma = SummSignal[k];
+                LongSigma_new = SummSignal[k+1];
+            }
 
 
-		double clearance = 1.0 /Bitrate * samplingFrequency;
-		vector<vector<int>> delays;
-		delays.clear();
-		delays.resize(KolSat);
-		for (int i = 0; i < KolSat; i++)
-		{
-			auto delays1 = find_max_n(KolSour, Corr[i], x, clearance);
-			//auto delays1 = find_max_n(KolMax, correlate[i], clearance);
-			delays[i] = delays1;
-		}
+            vector<complex<double>> Hi;
+            for (int i = 0; i < Sigma.size(); i++)
+            {
+                double Re = Sigma[i]- sredLongSigma1;
+                complex<double> comp(Re, 0);
+                Hi.push_back(comp);
+            }
 
-		vector<double> SummDelays;
-		SummDelays.clear();
-		SummDelays = criteria(delays);
+            vector<complex<double>> Hu;
+            for (int i = 0; i < LongSigma_new.size(); i++)
+            {
+                double Re = LongSigma_new[i]- sredLongSigma2;
+                complex<double> comp(Re, 0);
+                Hu.push_back(comp);
+            }
+
+            unsigned int pts = 2;
+            while (Hi.size() > pts)
+            {
+                pts *= 2;
+            }
+
+            sizeSPM = pts;
+            vector<complex<double>> Pw;
+            vector<complex<double>> PShum;
+            vector<double> PSg;
+            vector<double> PSh;
+            GetSPM(Pw, PShum, PSh, PSg);
+
+            vector<double> cor;
+            vector<double> x;
+            double shag=samplingFrequency/PSh.size();
+            for (int a = 0; a < PSh.size(); a++) {
+                cor.push_back(PSh[a]);
+                x.push_back(a*shag);
+            }
+
+            cor.clear();
+            x.clear();
+            double max = 0, f=0;
+            shag=samplingFrequency/PSg.size();
+            for (int a = 0; a < PSg.size(); a++)
+            {
+                if (a == 0) PSg[a] = 0;
+                if (a < PSg.size() / 2 && max < PSg[a])
+                {
+                    max = PSg[a];
+                    f = a * samplingFrequency / PSg.size();
+                }
+                cor.push_back(PSg[a]);
+                x.push_back(a*shag);
+            }
+
+            vector<complex<double>> correlation;
+            newcorrelate(Hi, Hu, PSg,PSh, correlation, time);
+            time.clear();
+
+            for(int n = -(int)(correlation.size()/2); n <= (int)(correlation.size()/2-1); n++)
+                time.push_back(n);
+
+            vector<double> ampl;
+            double t = 0;
+            for (int i = 0; i < correlation.size(); i++) {
+                ampl.push_back(abs(correlation[i]));
+            }
+            Corr[k]=ampl;
+            int razmCorr = Corr[k].size();
+            int razmx = time.size();
+        }
+
+
+        double clearance = 1.0 / Bitrate * samplingFrequency;
+        vector<vector<int>> delays;
+        delays.clear();
+        delays.resize(KolSat);
+        for (int i = 0; i < KolSat; i++)
+        {
+            auto delays1 = find_max_n(KolSour, Corr[i], time, clearance);
+            //auto delays1 = find_max_n(KolMax, correlate[i], clearance);
+            delays[i] = delays1;
+        }
+
+        vector<double> SummDelays;
+        SummDelays.clear();
+        SummDelays = criteria(delays);
 
 		KolOtch = SummDelays.size();
 
@@ -233,6 +339,7 @@ private:
 
 		sdvigTime.clear();
 		sdvigFreq.clear();
+        SHUM.clear();
 	}
 
 
@@ -246,50 +353,52 @@ private:
 		return _min + double(rand()) / RAND_MAX * (_max - _min);
 	}
 
-	void addNoise(vector<double>& buf, double SNR)
-	{
-		//srand(0);
-		double energy = std::accumulate(buf.begin(), buf.end(), 0.0,
-			[&](double a, double b)
-			{
-				return a + b * b;
-			});
+    void addNoise(vector<double>& buf, double SNR)
+    {
+        //srand(0);
+        double energy = std::accumulate(buf.begin(), buf.end(), 0.0,
+                                        [&](double a, double b)
+                                        {
+                                            return a + b * b;
+                                        });
 
-		vector <double> noise(buf.size(), 0.0);
-		vector <double> ampl(buf.size(), 0.0);
-		std::transform(ampl.begin(), ampl.end(), ampl.begin(),
-			[&](double a)
-			{
-				int count_rep = 20;
-				a = 0.0;
-				for (int rep = 0; rep < count_rep; rep++)
-				{
-					a += ((double)rand() / RAND_MAX) * 2.0 - 1.0;
-				}
-				a /= count_rep;
-				return a;
-			});
-		std::transform(noise.begin(), noise.end(), ampl.begin(), noise.begin(),
-			[&](double a, double ampl)
-			{
-				double fi = (double)rand() / RAND_MAX * 2.0 * 3.1415926535897;
-				return ampl * cos(fi);
-			});
+        vector <double> noise(buf.size(), 0.0);
+        vector <double> ampl(buf.size(), 0.0);
+        std::transform(ampl.begin(), ampl.end(), ampl.begin(),
+                       [&](double a)
+                       {
+                           int count_rep = 20;
+                           a = 0.0;
+                           for (int rep = 0; rep < count_rep; rep++)
+                           {
+                               a += ((double)rand() / RAND_MAX) * 2.0 - 1.0;
+                           }
+                           a /= count_rep;
+                           return a;
+                       });
+        std::transform(noise.begin(), noise.end(), ampl.begin(), noise.begin(),
+                       [&](double a, double ampl)
+                       {
+                           double fi = (double)rand() / RAND_MAX * 2.0 * 3.1415926535897;
+                           return ampl * cos(fi);
+                       });
 
-		double noise_energy = std::accumulate(noise.begin(), noise.end(), 0.0,
-			[&](double a, double b)
-			{
-				return a + b * b;
-			});
-		double norm_coef = energy * pow(10.0, -SNR / 10.0) / noise_energy;
+        double noise_energy = std::accumulate(noise.begin(), noise.end(), 0.0,
+                                              [&](double a, double b)
+                                              {
+                                                  return a + b* b;
+                                              });
+        double norm_coef = energy * pow(10.0, -SNR / 10.0) / noise_energy;
 
 
-		std::transform(buf.begin(), buf.end(), noise.begin(), buf.begin(),
-			[&](double a, double b)
-			{
-				return (a + sqrt(norm_coef) * b);
-			});
-	}
+        std::transform(buf.begin(), buf.end(), noise.begin(), buf.begin(),
+                       [&](double a, double b)
+                       {
+                           return (a + sqrt(norm_coef) * b);
+                       });
+        if (SNR == 10)
+            SHUM = noise;
+    }
 
 	void transformSignal(vector<double>& base_signal, double delay, double duration, double fshift, double scale, double SNR, vector<double>& ret_sig)
 	{
@@ -773,6 +882,277 @@ private:
 		}
 		return SummDelays;
 	}
+
+    void GetSPM(vector<complex<double>>& Pw, vector<complex<double>>& PShum, vector<double>& PSh, vector<double>& PSg)
+    {
+        //метка времени начала
+        double startTimestamp = 0;
+        //начальная фаза
+        double startPhase = 0;
+        double nSamples = 0;
+        //дополнительный параметр
+        double additionalParameter = 0;
+
+        int samples_in_bit = (int)(samplingFrequency / Bitrate);// кол-во отсчетов на 1 бит
+        double sampling_period = 1. / samplingFrequency;// период дискретизации
+
+        Pw.resize(sizeSPM);
+        PShum.resize(sizeSPM);
+
+        vector<double> Re(sizeSPM);
+        vector<double> Im(sizeSPM);
+
+        vector<double> ReS(sizeSPM);
+        vector<double> ImS(sizeSPM);
+
+        PSg.resize(sizeSPM);
+        PSh.resize(sizeSPM);
+
+        double kol_Usr=1;
+        for (int i = 0; i < kol_Usr; i++)
+        {
+            vector<double> IsslSignal;
+            vector<double> IssSigma;
+            vector<double> sign;
+            vector<double> Bit;
+
+            double dbl_index = startTimestamp;
+            int iter = 0;
+            double phase;
+            double Ampl = 1.;
+
+            while (dbl_index < startTimestamp + Duration/10)
+            {
+                double bit = RandomBit(0.5);
+                for (int n_sample = 0; n_sample < samples_in_bit; n_sample++)
+                {
+                    if (bit == 0) phase = 0.;
+                        //deltaF = 100000;
+                    else phase = 3.1415926535897;
+                    //deltaF=0;
+                    IsslSignal.push_back(Ampl * sin(2 * 3.1415926535897 * (f0)*dbl_index + phase));
+                    sign.push_back(Ampl * cos(2 * 3.1415926535897 * f0 * dbl_index));
+                    dbl_index += sampling_period;
+                    Bit.push_back((int)bit);
+                }
+            }
+            vector<double> buf = IsslSignal;
+            vector<double> bufsign = sign;
+            addNoise(bufsign, 10);
+            addNoise(buf, 10);
+
+            GetSigma(IsslSignal, sign, IssSigma);
+
+            vector<complex<double>> IsslH;
+
+            for (int i = 0; i < IssSigma.size(); i++)
+            {
+                double Re = IssSigma[i];
+                complex<double> comp(Re, 0);
+                IsslH.push_back(comp);
+            }
+            newFFT(IsslH, -1);
+
+            vector<complex<double>> IsslHShum;
+
+            for (int i = 0; i < IssSigma.size(); i++)
+            {
+                double Re = SHUM[i];
+                complex<double> comp(Re, 0);
+                IsslHShum.push_back(comp);
+            }
+            newFFT(IsslHShum, -1);
+
+            vector<vector<double>> cor;
+            cor.resize(1);
+            for(int a=0;a< IsslHShum.size();a++)
+                cor[0].push_back(abs(IsslHShum[a]));
+
+            /**GraphPen.clear();
+            GraphPen.push_back(new CPen(PS_SOLID, 3, RGB(178, 102, 255)));
+
+            GraphType type = GraphType::Graphic;
+            DrawGraph2(cor, startTimestamp, IsslHShum.size(), GraphPen, PicDc_LongSignal, Pic_LongSignal, type);*/
+
+
+
+            for (int k = 0; k < IsslH.size(); k++)
+            {
+                Re[k] += IsslH[k].real();
+                Im[k] += IsslH[k].imag();
+                PSg[k] += (abs(IsslH[k]));
+
+                ReS[k] += IsslHShum[k].real();
+                ImS[k] += IsslHShum[k].imag();
+                PSh[k] += (abs(IsslHShum[k]));
+            }
+        }
+
+        for (int i = 0; i < Re.size(); i++)
+        {
+            double re = Re[i]/kol_Usr;
+            double im = Im[i]/kol_Usr;
+            complex<double> comp(re, im);
+            Pw[i]=comp;
+
+            double res = ReS[i]/kol_Usr;
+            double ims = ImS[i]/kol_Usr;
+            complex<double> compS(res, ims);
+            PShum[i] = compS;
+        }
+
+        for (int i = 0; i < Pw.size(); i++)
+        {
+            Pw[i] /= kol_Usr;
+            PShum[i] /= kol_Usr;
+        }
+    }
+
+    void newFFT(vector<complex<double>>& in, int direction)
+    {
+        //out = in;
+        unsigned int pts = 2;
+        while (in.size() > pts)
+        {
+            pts *= 2;
+        }
+
+        int pts_to_add = pts - in.size();
+
+        for (int ttt = 0; ttt < pts_to_add; ttt++)
+        {
+            in.push_back(complex<double>(0, 0));
+        }
+        int n = in.size();
+
+        int i, j, istep;
+        int m, mmax;
+        double r, r1, theta, w_r, w_i, temp_r, temp_i;
+
+        r = M_PI * direction;
+        j = 0;
+
+        for (i = 0; i < n; i++)
+        {
+            if (i < j)
+            {
+                temp_r = in[j].real();
+                temp_i = in[j].imag();
+                in[j] = in[i];
+                in[i] = complex<double>(temp_r, temp_i);
+            }
+            m = n >> 1;
+            while (j >= m)
+            {
+                j -= m;
+                m = (m + 1) / 2;
+            }
+            j += m;
+        }
+        mmax = 1;
+        while (mmax < n)
+        {
+            istep = mmax << 1;
+            r1 = r / (double)mmax;
+            for (m = 0; m < mmax; m++)
+            {
+                theta = r1 * m;
+                w_r = (double)cos((double)theta);
+                w_i = (double)sin((double)theta);
+                for (i = m; i < n; i += istep)
+                {
+                    j = i + mmax;
+                    temp_r = w_r * in[j].real() - w_i * in[j].imag();
+                    temp_i = w_r * in[j].imag() + w_i * in[j].real();
+                    in[j] = complex<double>((in[i].real() - temp_r), (in[i].imag() - temp_i));
+                    in[i] += complex<double>(temp_r, temp_i);
+                }
+            }
+            mmax = istep;
+        }
+        if (direction > 0)
+        {
+            double sqn = n;
+            for (i = 0; i < n; i++)
+            {
+                in[i] /= sqn;
+            }
+        }
+    }
+
+    void newcorrelate(vector<complex<double>>& base_signal, vector<complex<double>>& analyzed_signal, vector<double>& PSg, vector<double>& PSh,vector<complex<double>>& correlation, vector<double>& x)
+    {
+
+        newFFT(base_signal, -1);
+
+        vector<complex<double>> K;
+
+        vector<complex<double>> HSopr;
+        vector<double> ModH;
+        for (int i = 0; i < base_signal.size(); i++)
+        {
+            //if (i > 30 && i < base_signal.size() - 29)HSopr.push_back(0.);
+            //else
+            HSopr.push_back(conj(base_signal[i]));
+            ModH.push_back(abs(base_signal[i]));
+            //double mod = base_signal[i].real() * base_signal[i].real() + base_signal[i].imag() + base_signal[i].imag();
+            //ModH.push_back(mod);
+        }
+
+        GetK(K, PSg, PSh, HSopr, ModH);
+
+        vector<complex<double>> Hu;
+        for (int i = 0; i < analyzed_signal.size(); i++) {
+            Hu.push_back(analyzed_signal[i]);
+        }
+        newFFT(Hu, -1);
+
+
+        vector<complex<double>> Peremn;
+
+
+        int size1 = Hu.size();
+        int size2 = K.size();
+
+        for (int i = 0; i < Hu.size(); i++)
+        {
+            Peremn.push_back(K[i] * Hu[i]);
+            x.push_back(i);
+        }
+
+
+
+        newFFT(Peremn,1);
+        vector<complex<double>> Peremn_new;
+        for(int i=0;i<Peremn.size();i++)
+        {
+            if(i<Peremn.size()/2) Peremn_new.push_back(Peremn[i+Peremn.size()/2]);
+            else Peremn_new.push_back(Peremn[i-Peremn.size()/2]);
+        }
+
+        correlation = Peremn_new;
+
+    }
+
+    void GetK(vector<complex<double>>& K, vector<double>& SPNSigma, vector<double>& SPNShum, vector<complex<double>>& HSopr, vector<double>& HMod)
+    {
+        double alpha = 20;
+        K.resize(HSopr.size());
+        double shum = 0;
+        for (int i = 0; i < SPNShum.size(); i++)
+        {
+            shum += SPNShum[i];
+        }
+        shum/= SPNShum.size();
+
+        for (int i = 0; i < K.size(); i++)
+        {
+            double koef = HMod[i]/**HMod[i]*/ + alpha * shum/ SPNSigma[i];
+            // if (i == 0) K[i] = 0;
+            //else
+            K[i] =HSopr[i]/koef;
+        }
+    }
 	
 private:
 	//������� �������������
