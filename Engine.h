@@ -14,7 +14,7 @@ class Researcher
 {
 public:
 	int KolSat=3;
-	int KolSour = 3;
+	int KolSour = 2;
     int sizeSPM = 0;
 
 	vector<string> str;
@@ -44,7 +44,7 @@ public:
 		vector<double> Polverout;
 		vector<double> veroutminusone;
 		vector<double> veroutminustwo;
-		for (double shum = 15; shum < 20; shum += 1)
+		for (double shum = -5; shum < 20; shum += 1)
 		{
 			cout << "SNR_dB = " << shum << endl;
 			positive_test_num = 0;
@@ -61,12 +61,12 @@ public:
 				//GenerateTwoLongSignal();
 				if (KolOtch == KolSour) KolPrav++;
 				if (KolOtch == KolSour - 1 || KolOtch == KolSour) KolOne++;
-				if (KolOtch == KolSour - 2 || KolOtch == KolSour - 1 || KolOtch == KolSour) KolTwo++;
+				//if (KolOtch == KolSour - 2 || KolOtch == KolSour - 1 || KolOtch == KolSour) KolTwo++;
 			}
 			Polverout.push_back(KolPrav / num_of_tests);
 			veroutminusone.push_back(KolOne / num_of_tests);
 			veroutminustwo.push_back(KolTwo / num_of_tests);
-			is << Polverout[iter] << "\t" << veroutminusone[iter] << "\t" << veroutminustwo[iter] << "\n";
+			is << Polverout[iter] << "\t" << veroutminusone[iter] << /*"\t" << veroutminustwo[iter] << */"\n";
 			iter++;
 		}
 		cout << "FINISH" << endl;
@@ -156,55 +156,58 @@ private:
 		LongSignal.resize(KolSat);
 		LongSigma.resize(KolSat);
 		vector<vector<double>> vc;
-		vc.resize(KolSour);
 		double d = Duration / 10;
-		vc.resize(KolSour);
-		for (int i = 0; i < KolSat; i++)
-		{
-			LongSignal[i].resize(KolSour);
+        vc.resize(KolSat);
+        for(int i=0;i<KolSat;i++)
+        {
+            LongSignal[i].resize(KolSour);
 
-			for (int j = 0; j < KolSour; j++)
-			{
-				transformSignal(InputSignal[j], sdvigTime[i + KolSat * j] * d, d, sdvigFreq[i + KolSat * j], 1, SNR_dB, LongSignal[i][j]);
+            for(int j=0;j<KolSour;j++)
+            {
+                transformSignal(InputSignal[j], sdvigTime[i + KolSat * j] * d, d, sdvigFreq[i + KolSat * j], 1, SNR_dB, LongSignal[i][j]);
+            }
+            if (KolSour == 1)
+            {
+                SummSignal[i] = LongSignal[i][0];
+            }
+            else {
+                for (int j = 1; j < KolSour; j++) {
+                    if (j == 1) {
 
-				vector<double>sinus;
-				for (int k = 0; k < LongSignal[i][j].size(); k++)
-					sinus.push_back(sign[j][k]);
+                        vector<vector<double>> sgs;
+                        sgs.resize(2);
 
-				addNoise(sinus, SNR_dB);
+                        sgs[0] = LongSignal[i][0];
+                        sgs[1] = LongSignal[i][j];
 
-				//addNoise(LongSignal[i][j], param.snr, param);
-				//addNoise(sinus, param.snr, param);
-				GetSigma(LongSignal[i][j], sinus, vc[j]);
-			}
+                        coherentSumm(sgs, SummSignal[i]);
+                    } else {
+                        vector<vector<double>> sgs;
+                        sgs.resize(2);
+                        sgs[0] = SummSignal[i];
+                        sgs[1] = LongSignal[i][j];
 
-			if (KolSour == 1)
-			{
-				SummSignal[i] = vc[0];
-			}
-			else {
-				for (int j = 1; j < KolSour; j++) {
-					if (j == 1) {
+                        coherentSumm(sgs, SummSignal[i]);
+                    }
+                }
+            }
+            vector<double>sinus;
+            for(int k=0;k<SummSignal[i].size();k++)
+                sinus.push_back(sign[0][k]);
 
-						vector<vector<double>> sgs;
-						sgs.resize(2);
+            addNoise(sinus, SNR_dB);
+            GetSigma(SummSignal[i], sinus, vc[i]);
 
-						sgs[0] = vc[0];
-						sgs[1] = vc[j];
-
-						coherentSumm(sgs, SummSignal[i]);
-					}
-					else {
-						vector<vector<double>> sgs;
-						sgs.resize(2);
-						sgs[0] = SummSignal[i];
-						sgs[1] = vc[j];
-
-						coherentSumm(sgs, SummSignal[i]);
-					}
-				}
-			}
-		}
+            double maxVC=0;
+            for(int s=0;s<vc[i].size();s++)
+            {
+                if(vc[i][s]>maxVC) maxVC=vc[i][s];
+            }
+            for(int s=0;s<vc[i].size();s++)
+            {
+                vc[i][s]/=maxVC;
+            }
+        }
 
         vector<vector<double>> Corr;
         Corr.resize(KolSat);
@@ -218,29 +221,28 @@ private:
             double sredLongSigma1 = 0, sredLongSigma2 = 0;
             if(k+1==KolSat)
             {
-                for (int i = 0; i < SummSignal[k].size(); i++) {
-                    sredLongSigma1 += SummSignal[k][i];
-                    sredLongSigma2 += SummSignal[0][i];
+                for (int i = 0; i < vc[k].size(); i++) {
+                    sredLongSigma1 += vc[k][i];
+                    sredLongSigma2 += vc[0][i];
                 }
-                sredLongSigma1 /= SummSignal[k].size();
-                sredLongSigma2 /= SummSignal[0].size();
+                sredLongSigma1 /= vc[k].size();
+                sredLongSigma2 /= vc[0].size();
 
-                Sigma = SummSignal[k];
-                LongSigma_new = SummSignal[0];
+                Sigma = vc[k];
+                LongSigma_new = vc[0];
             }
             else
             {
-                for (int i = 0; i < SummSignal[k].size(); i++) {
-                    sredLongSigma1 += SummSignal[k][i];
-                    sredLongSigma2 += SummSignal[k+1][i];
+                for (int i = 0; i < vc[k].size(); i++) {
+                    sredLongSigma1 += vc[k][i];
+                    sredLongSigma2 += vc[k+1][i];
                 }
-                sredLongSigma1 /= SummSignal[k].size();
-                sredLongSigma2 /= SummSignal[k+1].size();
+                sredLongSigma1 /= vc[k].size();
+                sredLongSigma2 /= vc[k+1].size();
 
-                Sigma = SummSignal[k];
-                LongSigma_new = SummSignal[k+1];
+                Sigma = vc[k];
+                LongSigma_new = vc[k+1];
             }
-
 
             vector<complex<double>> Hi;
             for (int i = 0; i < Sigma.size(); i++)
@@ -575,218 +577,274 @@ private:
 
 	void GetSigma(vector<double>& InputSignal, vector<double>& rx, vector<double>& Sigma)
 	{
-		//������ ������������������ �������
-		int P = p;
-		double* rxx = new double[P];
-		memset(rxx, 0, (P) * sizeof(double));
-		double summ;
-		int iter = 0;
-		vector<vector<double>> cor;
-		cor.clear();
-		cor.resize(1);
-		for (int m = 0; m < P; m++)
-		{
-			/*summ = 0;
-			for (int k = 0; k < sign.size(); k++)
-			{
-				if(k+m>=0 && (m + k) < sign.size())
-				summ += sign[k] * sign[k + m];
-			}
-			rxx[iter] = summ / (sign.size());*/
-			rxx[iter] = rx[iter];
-			cor[0].push_back(rx[iter]);
-			iter++;
-		}
+        int P = p;
+        double* rxx = new double[P];
+        memset(rxx, 0, (P) * sizeof(double));
+        double summ;
+        int iter = 0;
+        vector<vector<double>> cor;
+        cor.clear();
+        cor.resize(1);
 
-		double** Rij = matrix(P, P);
-		for (int i = 0; i < P; i++)
-		{
-			for (int j = 0; j < P; j++)
-			{
-				Rij[i][j] = 0;
-			}
-		}
-		/*int t = p-1;
-		iter = 1;
-		for (int i = 0; i < P; i++)
-		{
-			for (int j = 0; j < P; j++)
-			{
-				Rij[i][j] = rxx[t-j];
-			}
-			t = t + iter;
-		}*/
+        for (int m = 0; m < P; m++)
+        {
+            /*summ = 0;
+            for (int k = 0; k < sign.size(); k++)
+            {
+                if(k+m>=0 && (m + k) < sign.size())
+                summ += sign[k] * sign[k + m];
+            }
+            rxx[iter] = summ / (sign.size());*/
+            rxx[iter] = rx[iter];
+            cor[0].push_back(rx[iter]);
+            iter++;
+        }
 
-		int t = 0;
-		for (int i = 0; i < P; i++)
-		{
-			for (int j = 0; j < P; j++)
-			{
-				if (i - j < 0)
-				{
-					t = abs(i - j);
-					Rij[i][j] = rxx[t];
-				}
-				else
-					Rij[i][j] = rxx[i - j];
-			}
-		}
+        double** Rij = matrix(P, P);
+        for (int i = 0; i < P; i++)
+        {
+            for (int j = 0; j < P; j++)
+            {
+                Rij[i][j] = 0;
+            }
+        }
+        /*int t = p-1;
+        iter = 1;
+        for (int i = 0; i < P; i++)
+        {
+            for (int j = 0; j < P; j++)
+            {
+                Rij[i][j] = rxx[t-j];
+            }
+            t = t + iter;
+        }*/
+
+        int t = 0;
+        for (int i = 0; i < P; i++)
+        {
+            for (int j = 0; j < P; j++)
+            {
+                if (i - j < 0)
+                {
+                    t = abs(i - j);
+                    Rij[i][j] = rxx[t];
+                }
+                else
+                    Rij[i][j] = rxx[i - j];
+            }
+        }
 
 
-		double* MassInStroka = new double[P * P];
-		memset(MassInStroka, 0, (P * P) * sizeof(double));
-		int k = 0;
-		for (int j = 0; j < P; j++)
-		{
-			for (int i = 0; i < P; i++)
-			{
-				MassInStroka[k] = Rij[i][j];
-				k++;
-			}
-		}
+        double* MassInStroka = new double[P * P];
+        memset(MassInStroka, 0, (P * P) * sizeof(double));
+        int k = 0;
+        for (int j = 0; j < P; j++)
+        {
+            for (int i = 0; i < P; i++)
+            {
+                MassInStroka[k] = Rij[i][j];
+                k++;
+            }
+        }
 
-		double* U = new double[P * P];
-		double* V = new double[P * P];
-		double* G = new double[P];
+        double* U = new double[P * P];
+        double* V = new double[P * P];
+        double* G = new double[P];
 
-		memset(U, 0, P * P * sizeof(double));
-		memset(V, 0, P * P * sizeof(double));
-		memset(G, 0, P * sizeof(double));
+        memset(U, 0, P * P * sizeof(double));
+        memset(V, 0, P * P * sizeof(double));
+        memset(G, 0, P * sizeof(double));
 
-		svd_hestenes(P, P, MassInStroka, U, V, G);
+        svd_hestenes(P, P, MassInStroka, U, V, G);
 
-		double* GKrest = new double[P];
-		memset(GKrest, 0, P * sizeof(double));
-		double max = 0;
-		for (int i = 0; i < P; i++)
-			if (max < G[i]) max = G[i];
-		double koef = 0;
-		if (SNR_dB == 0) koef = 0.1 / 100 * max;
-		else koef = abs(SNR_dB) / 100 * max;
-		for (int i = 0; i < P; i++)
-		{
-			if (G[i] != 0 && G[i] > koef)
-				GKrest[i] = 1 / G[i];
-			else
-				GKrest[i] = G[i];
-		}
+        double* GKrest = new double[P];
+        memset(GKrest, 0, P * sizeof(double));
+        double max = 0;
+        for (int i = 0; i < P; i++)
+            if (max < G[i]) max = G[i];
+        double koef = 0;
+        if (SNR_dB == 0) koef = 0.1 / 100 * max;
+        else koef = abs(SNR_dB) / 100 * max;
+        for (int i = 0; i < P; i++)
+        {
+            if (G[i] != 0 && G[i] > koef)
+                GKrest[i] = 1 / G[i];
+            else
+                GKrest[i] = G[i];
+        }
 
-		//�������������� �������
-		double** UKrest = matrix(P, P);
-		double** VKrest = matrix(P, P);
-		/*memset(UKrest, 0, P* P * sizeof(double));
-		memset(VKrest, 0, P* P * sizeof(double));*/
-		int s = 0;
-		int x = 0;
-		for (int i = 0; i < P; i++)
-		{
-			for (int j = 0; j < P; j++)
-			{
-				UKrest[i][j] = U[s];
-				VKrest[i][j] = V[x];
-				s++;
-				x++;
-			}
-		}
+        //псевдообратная матрица
+        double** UKrest = matrix(P, P);
+        double** VKrest = matrix(P, P);
+        /*memset(UKrest, 0, P* P * sizeof(double));
+        memset(VKrest, 0, P* P * sizeof(double));*/
+        int s = 0;
+        int x = 0;
+        for (int i = 0; i < P; i++)
+        {
+            for (int j = 0; j < P; j++)
+            {
+                UKrest[i][j] = U[s];
+                VKrest[i][j] = V[x];
+                s++;
+                x++;
+            }
+        }
 
-		double** UKrest_transpose = matrix(P, P);
-		for (int i = 0; i < P; i++)
-		{
-			for (int j = 0; j < P; j++)
-			{
-				UKrest_transpose[i][j] = UKrest[j][i];
-			}
-		}
+        double** UKrest_transpose = matrix(P, P);
+        for (int i = 0; i < P; i++)
+        {
+            for (int j = 0; j < P; j++)
+            {
+                UKrest_transpose[i][j] = UKrest[j][i];
+            }
+        }
 
-		double** Akrest = matrix(P, P);
+        double** Akrest = matrix(P, P);
 
-		double** GGkrest = matrix(P, P);
-		for (int i = 0; i < P; i++)
-		{
-			for (int j = 0; j < P; j++)
-			{
-				if (i != j) GGkrest[i][j] = 0;
-				else GGkrest[i][j] = GKrest[i];
-			}
-		}
+        double** GGkrest = matrix(P, P);
+        for (int i = 0; i < P; i++)
+        {
+            for (int j = 0; j < P; j++)
+            {
+                if (i != j) GGkrest[i][j] = 0;
+                else GGkrest[i][j] = GKrest[i];
+            }
+        }
 
-		double** Composition_Two = Composition_Matrix_Two(GGkrest, UKrest_transpose, P);
-		Akrest = Composition_Matrix_Two(VKrest, Composition_Two, P);
+        double** Composition_Two = Composition_Matrix_Two(GGkrest, UKrest_transpose, P);
+        Akrest = Composition_Matrix_Two(VKrest, Composition_Two, P);
 
-		double** buf1 = matrix(P, P);
+        double** buf1 = matrix(P, P);
 
-		double** A = matrix(P, P);
+        double** A = matrix(P, P);
 
-		iter = 0;
-		for (int i = 0; i < P; i++)
-			for (int j = 0; j < P; j++)
-			{
-				A[i][j] = MassInStroka[iter];
-				iter++;
-			}
-		iter = 0;
+        iter = 0;
+        for (int i = 0; i < P; i++)
+            for (int j = 0; j < P; j++)
+            {
+                A[i][j] = MassInStroka[iter];
+                iter++;
+            }
+        iter = 0;
 
-		buf1 = Composition_Matrix_Two(Akrest, A, P);
+        buf1 = Composition_Matrix_Two(Akrest, A, P);
 
-		double** buf2 = matrix(P, P);
-		buf2 = Composition_Matrix_Two(A, buf1, P);
+        double** buf2 = matrix(P, P);
+        buf2 = Composition_Matrix_Two(A, buf1, P);
 
-		double dbl_index = 0;
+        double dbl_index = 0;
 
-		iter = 0;
-		Sigma.clear();
-		double M = 20;
+        iter = 0;
+        Sigma.clear();
 
-		InvR.clear();
-		InvR.resize(p);
-		for (int i = 0; i < p; i++)
-		{
-			InvR[i].resize(p);
-			for (int j = 0; j < p; j++)
-			{
-				if (i == j)InvR[i][j] = Akrest[i][j]/* + DoubleRand(0.001, 0.05)*/;
-				else
-					InvR[i][j] = Akrest[i][j];
-			}
-		}
-		double sampling_period = 1. / samplingFrequency;// ������ �������������
+        InvR.clear();
+        InvR.resize(p);
+        for (int i = 0; i < p; i++)
+        {
+            InvR[i].resize(p);
+            for (int j = 0; j < p; j++)
+            {
+                if (i == j)InvR[i][j] = Akrest[i][j] + DoubleRand(0.01, 0.005);
+                else
+                    InvR[i][j] = Akrest[i][j];
+            }
+        }
+        double sampling_period = 1. / samplingFrequency;// период дискретизации
 
-		int ti = 0;
-		double startTimestamp = 0;
-		//�����������������
-		double duration = Duration / 10;
-		while (dbl_index < startTimestamp + duration)
-		{
-			vector<double>r;
-			r.resize(p);
+        int ti = 0;
+        double startTimestamp = 0;
+        while (dbl_index < startTimestamp + Duration/10)
+        {
+            vector<double>r;
+            r.resize(p);
 
-			int kol = 0;
-			int Pi = 0;
-			for (int i = ti; i < p + ti; i++)
-			{
-				double counter = 0;
-				for (int j = 0; j < InputSignal.size(); j++)
-				{
-					if (j < M && j + i < InputSignal.size())
-						counter += InputSignal[j] * InputSignal[j + i];
-					else continue;
-				}
-				r[Pi] = counter / M;
-				Pi++;
-			}
+            int kol = 0;
+            int Pi = 0;
+            /*for (int i = ti; i < param.p + ti; i++)
+            {
+                double counter = 0;
+                for (int j = 0; j < InputSignal1.size(); j++)
+                {
+                    if (j < M && j + i < InputSignal1.size())
+                        counter += InputSignal1[j] * InputSignal1[j + i];
+                    else continue;
+                }
+                r[Pi] = counter / M;
+                Pi++;
+            }*/
 
-			vector<double> exp2 = Composition_Matrix_Stroka(InvR, r, p, p);
+            for (int i = ti; i < p + ti; i++)
+            {
+                double counter = 0;
+                for (int j = i; j < i + M; j++)
+                {
+                    counter += InputSignal[j] * InputSignal[j - i];
+                }
+                r[Pi] = counter/M;
+                Pi++;
+            }
 
-			double buf = 0;
-			for (int i = 0; i < exp2.size(); i++)
-			{
-				buf += r[i] * exp2[i];
-			}
+            /*for (int i = ti; i < param.p + ti; i++)
+            {
+                double counter = 0;
+                for (int j = i; j < i+M; j++)
+                {
+                    if(j+i<InputSignal1.size()) counter += InputSignal1[j] * InputSignal1[j + i];
+                    else
+                    {
+                        counter += InputSignal1[j] * InputSignal1[(j + i) - InputSignal1.size()];
+                    }
+                }
+                r[Pi] = counter / M;
+                Pi++;
+            }*/
 
-			Sigma.push_back(buf);
-			dbl_index += sampling_period;
-			ti++;
-		}
+            /* for (int i = ti; i < param.p + ti; i++)
+             {
+                 double counter = 0;
+                 int k = 0;
+                 for (int j = i; j < i + M; j++)
+                 {
+                     counter += InputSignal1[j] * InputSignal1[i-k];
+                     k++;
+                 }
+                 r[Pi] = counter / M;
+                 Pi++;
+             }*/
+
+            /*double r0=0;
+            for(int i=0;i<param.p;i++)
+            {
+                if(r[i]>r0) r0 = r[i];
+            }
+            for(int i=0;i<param.p;i++)
+            {
+                r[i]/=r0;
+            }*/
+
+            /*info.MassOtrisovka.push_back(r);
+            vector<double> x;
+            //sampling_period = 1. / param.fdisk;// период дискретизации
+            //t = 0;
+            for (int k = 0; k < r.size(); k++) {
+                x.push_back(k);
+            }
+            info.MassOtshetX.push_back(x);
+            listt.push_back("r");*/
+
+            vector<double> exp2 = Composition_Matrix_Stroka(InvR, r, p, p);
+
+            double buf = 0;
+            for (int i = 0; i < exp2.size(); i++)
+            {
+                buf += r[i] * exp2[i];
+            }
+
+            Sigma.push_back(buf);
+            dbl_index += sampling_period;
+            ti++;
+        }
 	}
 
 	void correlate(vector<double>& base_signal, vector<double>& analyzed_signal, vector<double>& correlation, vector<double>& time, double& sredSigma, double& sredLongSigma)
@@ -1161,7 +1219,7 @@ private:
 	//����� ������� ������
 	double startTimestamp = 0;
 	//�����������������
-	double Duration = 0.001;
+	double Duration = 0.04;
 	//��������� ����
 	double startPhase = 0;
 	double nSamples = 0;
@@ -1169,7 +1227,8 @@ private:
 	double Bitrate = 3e7;
 	//�������������� ��������
 	double additionalParameter = 0;
-	int p = 4;
+	int p = 7;
+    double M=30;
 
 	double SNR_dB;
 };
