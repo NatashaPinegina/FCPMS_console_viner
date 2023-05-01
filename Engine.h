@@ -14,7 +14,7 @@ class Researcher
 {
 public:
 	int KolSat=3;
-	int KolSour = 2;
+	int KolSour = 3;
     int sizeSPM = 0;
 
 	vector<string> str;
@@ -61,12 +61,12 @@ public:
 				//GenerateTwoLongSignal();
 				if (KolOtch == KolSour) KolPrav++;
 				if (KolOtch == KolSour - 1 || KolOtch == KolSour) KolOne++;
-				//if (KolOtch == KolSour - 2 || KolOtch == KolSour - 1 || KolOtch == KolSour) KolTwo++;
+				if (KolOtch == KolSour - 2 || KolOtch == KolSour - 1 || KolOtch == KolSour) KolTwo++;
 			}
 			Polverout.push_back(KolPrav / num_of_tests);
 			veroutminusone.push_back(KolOne / num_of_tests);
 			veroutminustwo.push_back(KolTwo / num_of_tests);
-			is << Polverout[iter] << "\t" << veroutminusone[iter] << /*"\t" << veroutminustwo[iter] << */"\n";
+			is << Polverout[iter] << "\t" << veroutminusone[iter] << "\t" << veroutminustwo[iter] << "\n";
 			iter++;
 		}
 		cout << "FINISH" << endl;
