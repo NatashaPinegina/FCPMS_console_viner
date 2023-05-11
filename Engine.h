@@ -27,11 +27,19 @@ public:
 
 	vector<double> sdvigTime;
 	vector<double> sdvigFreq;
+
+    vector<complex<double>> Pw;
+    vector<complex<double>> PShum;
+    vector<double> PSg;
+    vector<double> PSh;
 	
 	double KolOtch = 0;
+    int num_test =0;
+    int Kol=0;
 	void DoResearch(int num_of_tests)
 	{
-		srand(time(0));
+        Kol=num_of_tests;
+		//srand(time(0));
 		cout << "START" << endl;
 		int positive_test_num = 0;
 		int iter = 0;
@@ -62,6 +70,7 @@ public:
 				if (KolOtch == KolSour) KolPrav++;
 				if (KolOtch == KolSour - 1 || KolOtch == KolSour) KolOne++;
 				if (KolOtch == KolSour - 2 || KolOtch == KolSour - 1 || KolOtch == KolSour) KolTwo++;
+                num_test=i;
 			}
 			Polverout.push_back(KolPrav / num_of_tests);
 			veroutminusone.push_back(KolOne / num_of_tests);
@@ -198,7 +207,7 @@ private:
             addNoise(sinus, SNR_dB);
             GetSigma(SummSignal[i], sinus, vc[i]);
 
-            double maxVC=0;
+            /*double maxVC=0;
             for(int s=0;s<vc[i].size();s++)
             {
                 if(vc[i][s]>maxVC) maxVC=vc[i][s];
@@ -206,7 +215,7 @@ private:
             for(int s=0;s<vc[i].size();s++)
             {
                 vc[i][s]/=maxVC;
-            }
+            }*/
         }
 
         vector<vector<double>> Corr;
@@ -267,11 +276,8 @@ private:
             }
 
             sizeSPM = pts;
-            vector<complex<double>> Pw;
-            vector<complex<double>> PShum;
-            vector<double> PSg;
-            vector<double> PSh;
-            GetSPM(Pw, PShum, PSh, PSg);
+
+            if( num_test == 0) GetSPM(Pw, PShum, PSh, PSg);
 
             vector<double> cor;
             vector<double> x;
@@ -342,6 +348,13 @@ private:
 		sdvigTime.clear();
 		sdvigFreq.clear();
         SHUM.clear();
+        if(num_test==Kol-1)
+        {
+            Pw.clear();
+            PShum.clear();;
+            PSg.clear();;
+            PSh.clear();;
+        }
 	}
 
 
@@ -398,7 +411,7 @@ private:
                        {
                            return (a + sqrt(norm_coef) * b);
                        });
-        if (SNR == 10)
+        if (SNR == SNR_dB)
             SHUM = noise;
     }
 
@@ -745,7 +758,7 @@ private:
             InvR[i].resize(p);
             for (int j = 0; j < p; j++)
             {
-                if (i == j)InvR[i][j] = Akrest[i][j] + DoubleRand(0.01, 0.005);
+                if (i == j)InvR[i][j] = Akrest[i][j] /*+ DoubleRand(0.01, 0.005)*/;
                 else
                     InvR[i][j] = Akrest[i][j];
             }
@@ -996,8 +1009,8 @@ private:
             }
             vector<double> buf = IsslSignal;
             vector<double> bufsign = sign;
-            addNoise(bufsign, 10);
-            addNoise(buf, 10);
+            addNoise(bufsign, SNR_dB);
+            addNoise(buf, SNR_dB);
 
             GetSigma(IsslSignal, sign, IssSigma);
 
@@ -1194,7 +1207,7 @@ private:
 
     void GetK(vector<complex<double>>& K, vector<double>& SPNSigma, vector<double>& SPNShum, vector<complex<double>>& HSopr, vector<double>& HMod)
     {
-        double alpha = 20;
+        double alpha = 0.5;
         K.resize(HSopr.size());
         double shum = 0;
         for (int i = 0; i < SPNShum.size(); i++)
@@ -1219,7 +1232,7 @@ private:
 	//����� ������� ������
 	double startTimestamp = 0;
 	//�����������������
-	double Duration = 0.04;
+	double Duration = 0.08;
 	//��������� ����
 	double startPhase = 0;
 	double nSamples = 0;
