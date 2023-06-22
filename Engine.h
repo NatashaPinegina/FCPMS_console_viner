@@ -1227,7 +1227,7 @@ private:
 	
 private:
 	//������� �������������
-	double samplingFrequency = 300e6;
+	/*double samplingFrequency = 300e6;
 	double f0 = 100e6;
 	//����� ������� ������
 	double startTimestamp = 0;
@@ -1241,7 +1241,23 @@ private:
 	//�������������� ��������
 	double additionalParameter = 0;
 	int p = 7;
-    double M=30;
+    double M=30;*/
+
+    double samplingFrequency = 250000;
+    double f0 = 25000;
+    //����� ������� ������
+    double startTimestamp = 0;
+    //�����������������
+    double Duration = 0.04;
+    //��������� ����
+    double startPhase = 0;
+    double nSamples = 0;
+    //�������� �������� ������
+    double Bitrate = 4800;
+    //�������������� ��������
+    double additionalParameter = 0;
+    int p = 7;
+    int M=30;
 
 	double SNR_dB;
 };

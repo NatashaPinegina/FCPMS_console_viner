@@ -4,5 +4,5 @@
 int main()
 {
     Researcher rsrch;
-    rsrch.DoResearch(1000);
+    rsrch.DoResearch(100);
 }
