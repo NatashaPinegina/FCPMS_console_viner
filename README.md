@@ -3,7 +3,7 @@
 
 ### Сборка
 ```
-git clone 
+git clone https://github.com/NatashaPinegina/FCPMS_console_viner.git
 cd FCPMS_console_viner
 mkdir build
 cd build
